@@ -1,0 +1,166 @@
+==========================================================================
+BRIEFING COMPLET - PROJET DE RECHERCHE S8 CENTRALE LILLE
+Modelisation de la chaine pharmaceutique francaise + prevision ML
+==========================================================================
+
+CONTEXTE DU PROJET
+--------------------------------------------------------------------------
+Sujet officiel propose par le laboratoire CRIStAL (Centrale Lille) :
+"Prevision de la demande par series temporelles et machine learning"
+applique a une supply chain, avec comparaison de plusieurs modeles
+(ARIMA, SARIMA, LSTM, Prophet, XGBoost).
+
+L'encadrant a propose a Hiba d'aller plus loin en choisissant le domaine
+PHARMACEUTIQUE et en ajoutant une approche de modelisation MULTI-AGENT
+de toute la chaine d'approvisionnement, en plus du volet machine learning
+classique.
+
+Soutenance : 29 juin 2026. Aujourd'hui : 16 juin 2026 (13 jours restants).
+
+--------------------------------------------------------------------------
+LE PROBLEME ETUDIE
+--------------------------------------------------------------------------
+Les ruptures de stock de medicaments augmentent fortement en France :
+le nombre de declarations a triple entre 2017 et 2023 (donnees DREES/ANSM).
+En 2023 : 4925 declarations de ruptures, 800 medicaments en rupture
+simultanee pendant l'hiver 2022-2023, 44% des Francais ont vecu une
+penurie de medicament cette annee-la.
+
+Particularite francaise : la loi impose un intermediaire obligatoire
+entre le fabricant et les pharmacies, le GROSSISTE REPARTITEUR (Art.
+L.5124-17-2 du Code de la sante publique). Ce maillon dessert plusieurs
+pharmacies a la fois : s'il tombe en rupture, l'impact se propage
+instantanement a toutes les pharmacies qu'il alimente.
+
+--------------------------------------------------------------------------
+PARTIE 1 - LA MODELISATION THEORIQUE (terminee)
+--------------------------------------------------------------------------
+Reference principale : ShortageSim (Cui et al., AAAI 2026), un papier de
+recherche qui modelise les ruptures de medicaments aux Etats-Unis comme
+un systeme multi-agent (fabricant, acheteur, regulateur FDA).
+
+Hiba a etendu ce modele au contexte francais en ajoutant deux elements
+absents du modele americain :
+  1. Le grossiste repartiteur (obligatoire en France, pas aux USA)
+  2. Le circuit hospitalier, qui fonctionne en parallele du circuit de
+     ville et peut commander directement au fabricant (sans passer par
+     le grossiste)
+
+Le systeme final comporte 5 agents :
+  - Fabricant (ex: Sanofi, Pfizer) : produit, peut subir une "disruption"
+    (panne, probleme qualite) qui reduit sa capacite
+  - Grossiste repartiteur (ex: OCP, Cerp, Phoenix) : stocke et redistribue
+    aux pharmacies, identifie comme le POINT DE RUPTURE LE PLUS CRITIQUE
+  - Pharmacie de ville : vend aux patients, commande au grossiste
+  - Pharmacie hospitaliere : vend aux patients hospitalises, commande
+    directement au fabricant
+  - Patient : consomme, sa demande suit une loi D(t) = D0 + bruit aleatoire,
+    avec 3 profils types (chronique, saisonnier, critique)
+
+Chaque agent a ete caracterise selon ce qu'il sait et ne sait pas (tableau
+d'asymetrie d'information) : c'est cette asymetrie qui explique pourquoi
+les ruptures sont difficiles a anticiper - aucun agent ne voit l'ensemble
+de la chaine.
+
+3 points de rupture possibles ont ete identifies :
+  R1 = panne chez le fabricant
+  R2 = rupture chez le grossiste (LE PLUS GRAVE, car impacte plusieurs
+       pharmacies simultanement)
+  R3 = rupture visible chez la pharmacie (stock a zero, patient impacte)
+
+--------------------------------------------------------------------------
+PARTIE 2 - LES DONNEES (terminee, avec limites assumees)
+--------------------------------------------------------------------------
+Il n'existe AUCUNE base de donnees publique qui couvre toute la chaine
+(production + stocks intermediaires + consommation). Les stocks internes
+des entreprises sont confidentiels (secret commercial).
+
+Hiba a du construire son propre dataset en fusionnant 2 sources reelles
+officielles francaises :
+  1. Open Medic / Medic'AM (Assurance Maladie) : ventes reelles de
+     medicaments en pharmacie de ville, 2021-2023, plusieurs millions
+     de lignes brutes
+  2. ANSM (Agence du Medicament) : liste officielle des ruptures et
+     tensions d'approvisionnement declarees
+
+PROBLEME RENCONTRE : ces deux sources utilisent des systemes de codes
+differents pour identifier les medicaments (un peu comme si l'une donnait
+des numeros de telephone et l'autre des numeros de secu - meme personne,
+codes incompatibles). La jointure directe ne fonctionnait que pour 4.7%
+des cas.
+
+SOLUTION TROUVEE : comparer les NOMS des medicaments en texte plutot que
+les codes (methode de "fuzzy matching" / correspondance approximative).
+Cela a permis de monter a 69.4% de correspondance.
+
+LIMITE FINALE ASSUMEE : meme avec cette amelioration, le nombre de
+vraies ruptures identifiables precisement (par medicament) dans la
+periode 2021-2023 etait trop faible pour servir de base statistique
+fiable a un modele de machine learning. Hiba a donc garde une granularite
+par CATEGORIE THERAPEUTIQUE (ex: "Systeme nerveux") plutot que par
+medicament individuel (ex: "Doliprane") pour le modele final.
+
+2 datasets finaux ont ete produits :
+  - Un dataset ANNUEL : 3443 lignes (14 categories x 3 ans), avec 9.8%
+    de cas de rupture - pour entrainer XGBoost
+  - Un dataset MENSUEL : 43362 lignes (1289 substances x 36 mois), avec
+    1.5% de cas de rupture - pour une future modelisation par serie
+    temporelle (LSTM)
+
+--------------------------------------------------------------------------
+PARTIE 3 - LA SIMULATION (premiere version terminee)
+--------------------------------------------------------------------------
+L'encadrant a conseille de traiter la chaine progressivement : bien faire
+UNE partie avant d'etendre aux autres, plutot que de tout faire en meme
+temps de facon superficielle.
+
+Hiba a choisi de commencer par le maillon GROSSISTE-PHARMACIE, identifie
+comme le plus critique par sa propre analyse theorique (R2).
+
+Le code (en Python, sans la librairie specialisee Mesa par contrainte
+technique d'acces reseau) simule :
+  - Le fabricant qui produit chaque semaine, avec un risque de panne
+    calibre sur les vraies frequences observees en France (environ
+    0.14% de risque de panne par semaine, et une duree moyenne de panne
+    d'environ 28 semaines une fois nettoyees les valeurs aberrantes du
+    fichier ANSM)
+  - Le grossiste qui recoit la production avec un delai de 4 semaines
+  - La pharmacie qui recoit du grossiste avec un delai d'1 semaine et
+    vend aux patients selon une demande aleatoire
+
+Resultat actuel : le systeme absorbe relativement bien une panne de 26
+semaines chez le fabricant, avec un impact tres limite sur le patient
+final (ce qui montre que le stock du grossiste joue bien son role de
+tampon, comme prevu par la theorie).
+
+LIMITE CONNUE ET ASSUMEE : le stock du grossiste a tendance a augmenter
+indefiniment dans cette version, car le fabricant produit toujours
+legerement plus que la demande sans mecanisme d'ajustement automatique
+de sa production - axe d'amelioration identifie pour la prochaine version.
+
+--------------------------------------------------------------------------
+CE QUI RESTE A FAIRE (planning sur les jours restants)
+--------------------------------------------------------------------------
+1. Connecter un modele de machine learning (XGBoost ou LSTM) a la
+   simulation, pour predire les ruptures avant qu'elles n'arrivent
+2. Decider, avec l'accord du prof, si on enrichit les donnees reelles
+   avec des donnees synthetiques generees par la simulation elle-meme
+   (question en attente de reponse)
+3. Etendre eventuellement la simulation aux agents Hopital et Patient
+   si le temps le permet
+4. Construire un dashboard de visualisation (Power BI ou Streamlit,
+   comme demande dans le brief officiel du sujet)
+5. Rediger le rapport final et preparer les slides de soutenance
+
+--------------------------------------------------------------------------
+CE QUE TU PEUX FAIRE POUR AIDER
+--------------------------------------------------------------------------
+A discuter avec Hiba selon ses besoins precis, mais des pistes concretes :
+  - Explorer plus en detail les donnees construites (les 2 fichiers CSV)
+    pour en tirer des analyses ou visualisations complementaires
+  - Aider a la recherche bibliographique complementaire (articles sur
+    la modelisation multi-agent en supply chain pharmaceutique)
+  - Travailler en parallele sur le dashboard de visualisation
+  - Aider a tester et ameliorer le code de simulation Python
+
+==========================================================================

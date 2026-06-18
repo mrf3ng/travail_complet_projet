@@ -1,0 +1,471 @@
+
+==========================================================================
+DOCUMENTATION DU DATASET MASTER
+Prévision des Ruptures de Stock Pharmaceutiques — France 2021-2023
+==========================================================================
+
+TITRE    : Dataset Master Pharmaceutique France
+FICHIER  : dataset_master_pharmaceutique_france.csv
+DIMENSIONS: 3 441 lignes × 25 colonnes
+PÉRIODE  : 2021, 2022, 2023
+GRANULARITÉ : Substance active (ATC5) × Année
+
+==========================================================================
+SOURCES ET CONSTRUCTION
+==========================================================================
+
+4 sources officielles fusionnées :
+
+1. Open Medic (Assurance Maladie, 2021-2023)
+   → 5 620 195 lignes brutes agrégées par substance active + année
+   → Fournit : volumes de ventes, montants remboursés, nombre de boîtes
+   URL : assurance-maladie.ameli.fr/etudes-et-donnees/open-medic
+
+2. ANSM — Fichier des ruptures de stocks (10/06/2026)
+   → 767 événements de rupture/tension déclarés
+   → Fournit : type d'événement, dates, durées
+   URL : bdpmt.ansm.sante.fr/telechargement
+
+3. ANSM — Fichier MITM (09/03/2026)
+   → 7 711 médicaments d'intérêt thérapeutique majeur
+   → Fournit : code ATC, classification thérapeutique
+   URL : bdpmt.ansm.sante.fr/telechargement
+
+4. ANSM — Base de données publique médicaments (juin 2026)
+   → 15 848 spécialités + 20 888 présentations
+   → Fournit : noms officiels, fabricants, formes pharmaceutiques
+   URL : bdpmt.ansm.sante.fr/telechargement
+
+==========================================================================
+DESCRIPTION DES 25 COLONNES
+==========================================================================
+
+--- IDENTIFICATION TEMPORELLE ---
+
+1. annee
+   Type    : Entier (2021, 2022, 2023)
+   Desc    : Année de référence
+   Utilité : Variable temporelle principale
+
+2. annee_norm
+   Type    : Entier (0, 1, 2)
+   Desc    : Année normalisée (2021→0, 2022→1, 2023→2)
+   Utilité : Feature ML normalisée
+
+--- CLASSIFICATION ATC ---
+
+3. ATC1
+   Type    : Caractère unique (A à V)
+   Desc    : 1er niveau ATC — grande famille thérapeutique
+   Exemple : N = Système nerveux
+   Note    : Système de classification international OMS
+
+4. ATC2
+   Type    : Code (ex: N02)
+   Desc    : 2ème niveau ATC — groupe thérapeutique
+   Exemple : N02 = Analgésiques
+
+5. code_substance_active
+   Type    : Code ATC5 (ex: N02BE01)
+   Desc    : Niveau le plus fin — identifie la molécule précise
+   Exemple : N02BE01 = Paracétamol
+
+6. substance_active
+   Type    : Texte
+   Desc    : Nom de la substance active (DCI — Dénomination
+             Commune Internationale)
+   Exemple : PARACETAMOL
+
+7. categorie_therapeutique
+   Type    : Texte
+   Desc    : Libellé complet de la catégorie ATC1
+   Exemple : SYSTEME NERVEUX
+
+8. sous_categorie
+   Type    : Texte
+   Desc    : Libellé du groupe ATC2
+   Exemple : PREPARATIONS STOMATOLOGIQUES
+
+--- VARIABLES DE VENTES (Open Medic) ---
+
+9. boites_vendues
+   Type    : Entier
+   Desc    : Nombre total de boîtes remboursées dans l'année
+             pour cette substance active (tous conditionnements)
+   Unité   : Boîtes
+   Stat    : Médiane ~50 000 | Max ~1.7 milliard (Paracétamol)
+   Source  : Open Medic — colonne BOITES
+
+10. montant_rembourse_euros
+    Type    : Flottant
+    Desc    : Montant total remboursé par l'Assurance Maladie
+              pour cette substance active dans l'année
+    Unité   : Euros
+    Source  : Open Medic — colonne REM
+
+11. nb_presentations_distinctes
+    Type    : Entier
+    Desc    : Nombre de présentations (boîtes différentes) distinctes
+              pour cette substance active
+    Exemple : Paracétamol 500mg boîte 16cp ≠ boîte 100cp = 2 présentations
+    Utilité : Proxy de la diversité d'offre — moins de présentations
+              = risque de rupture plus concentré
+
+--- FEATURES TRANSFORMÉES (pour ML) ---
+
+12. log_boites
+    Type    : Flottant
+    Desc    : log(1 + boites_vendues)
+    Raison  : Distribution des ventes très asymétrique — log normalise
+    Utilité : Feature ML principale
+
+13. log_montant
+    Type    : Flottant
+    Desc    : log(1 + montant_rembourse_euros)
+    Raison  : Même raison que log_boites
+
+--- VARIABLES DE RUPTURES (ANSM) ---
+
+14. nb_ruptures
+    Type    : Entier
+    Desc    : Nombre de ruptures de stock CONFIRMÉES dans cette
+              catégorie thérapeutique (ATC1) cette année
+    Valeurs : 0 à N
+    Note    : Agrégé au niveau ATC1 (limite de jointure — voir limites)
+
+15. nb_tensions
+    Type    : Entier
+    Desc    : Nombre de tensions d'approvisionnement dans cette
+              catégorie cette année
+    Note    : La tension est un signal AVANT la rupture — plus précoce
+
+16. nb_evenements
+    Type    : Entier
+    Desc    : Nombre total d'événements ANSM (ruptures + tensions +
+              remises à disposition) dans cette catégorie + année
+    Utilité : Mesure globale de l'instabilité d'approvisionnement
+
+17. duree_moy_jours
+    Type    : Flottant
+    Desc    : Durée moyenne des ruptures dans cette catégorie (jours)
+    Valeur  : 0 si aucune rupture connue
+    Stat    : Moyenne globale = 433 jours pour les ruptures confirmées
+
+18. duree_max_jours
+    Type    : Flottant
+    Desc    : Durée maximale observée dans cette catégorie cette année
+    Utilité : Capture les ruptures extrêmes (certaines > 1000 jours)
+
+19. nb_ruptures_longues
+    Type    : Entier
+    Desc    : Nombre de ruptures dépassant 120 jours dans la catégorie
+    Seuil   : 120 jours = 4 mois (seuil critique selon littérature)
+    Source  : GAO Report 2016
+
+20. mois_premier_evenement
+    Type    : Entier (1-12)
+    Desc    : Mois du premier événement de rupture/tension dans la
+              catégorie cette année
+    Utilité : Analyse de saisonnalité des ruptures
+    Valeur  : 0 si aucun événement
+
+--- FEATURES CALCULÉES ---
+
+21. ratio_evenements
+    Type    : Flottant
+    Desc    : nb_evenements / (nb_presentations_distinctes + 1)
+    Utilité : Mesure la pression de rupture par médicament disponible
+              Un ratio élevé = beaucoup d'événements pour peu de médicaments
+
+22. taux_rupture_longue
+    Type    : Flottant (0 à 1)
+    Desc    : nb_ruptures_longues / (nb_ruptures + 1)
+    Utilité : Proportion des ruptures qui deviennent chroniques
+
+--- VARIABLES CIBLES (pour ML) ---
+
+23. categorie_en_rupture   ← VARIABLE CIBLE PRINCIPALE
+    Type    : Binaire (0/1)
+    Desc    : 1 si au moins une rupture confirmée dans la catégorie
+              cette année, 0 sinon
+    Distribution : 336 positifs (9.8%) / 3 105 négatifs (90.2%)
+    Utilité : Classification binaire — LSTM ou XGBoost
+
+24. categorie_en_tension
+    Type    : Binaire (0/1)
+    Desc    : 1 si au moins une tension d'approvisionnement dans la
+              catégorie cette année, 0 sinon
+    Distribution : 637 positifs (18.5%) / 2 804 négatifs (81.5%)
+    Utilité : Prédiction plus précoce que la rupture confirmée
+
+25. risque_rupture          ← VARIABLE CIBLE ORDONNÉE
+    Type    : Ordinal (0, 1, 2)
+    Desc    : Niveau de risque de la catégorie cette année
+              0 = Aucun événement connu
+              1 = Tension d'approvisionnement (risque modéré)
+              2 = Rupture de stock confirmée (risque élevé)
+    Distribution : 0→2468 | 1→637 | 2→336
+    Utilité : Classification multi-classes ou régression ordinale
+
+==========================================================================
+STATISTIQUES CLÉS
+==========================================================================
+
+Lignes totales              : 3 441
+Substances actives          : 1 209
+Catégories ATC1             : 14
+Années                      : 2021, 2022, 2023
+
+Ventes totales (3 ans)      : ~7 milliards de boîtes
+Montant remboursé (3 ans)   : données Assurance Maladie
+
+Ruptures (var. cible=1)     : 336 (9.8%)
+Tensions                    : 637 (18.5%)
+Aucun événement             : 2 468 (71.7%)
+
+Durée moy. rupture          : 433 jours
+Ruptures longues (>4 mois)  : significatives dans catégories critiques
+
+Top catégories en rupture :
+  1. Système nerveux
+  2. Hormones systémiques
+  3. Antiinfectieux (antibiotiques)
+
+==========================================================================
+UTILISATION DANS LE PROJET
+==========================================================================
+
+1. CALIBRATION DE LA SIMULATION MULTI-AGENT
+   λ (probabilité disruption/période) :
+     Estimée depuis nb_ruptures par catégorie / nb total de catégories
+     λ_France ≈ nb_ruptures_2023 / (nb_catégories × 4 trimestres)
+
+   δ (magnitude de la disruption) :
+     Estimée depuis duree_moy_jours / duree_moyenne_trimestre
+     δ_France basé sur les données réelles ANSM
+
+2. MODÉLISATION ML — PRÉDICTION DE RUPTURE
+
+   Features recommandées :
+     log_boites, log_montant, nb_presentations_distinctes,
+     nb_tensions (année précédente), ratio_evenements,
+     ATC1 (encodé), annee_norm
+
+   Variable cible recommandée :
+     - risque_rupture (ordinal 0/1/2) pour XGBoost
+     - categorie_en_rupture (binaire) pour LSTM
+
+   Note déséquilibre des classes :
+     Utiliser class_weight='balanced' ou SMOTE
+     car seulement 9.8% de positifs
+
+3. ANALYSE DE SAISONNALITÉ
+   Utiliser mois_premier_evenement pour identifier
+   les périodes à risque (hiver → grippe/antibiotiques)
+
+4. ANALYSE PAR TYPE DE MÉDICAMENT
+   Chronique  → boites_vendues stable entre années
+   Saisonnier → forte variation boites_vendues selon l'année
+   Critique   → est_MITM=1, faible nb_presentations
+
+==========================================================================
+LIMITES À MENTIONNER DANS LE RAPPORT
+==========================================================================
+
+1. JOINTURE PARTIELLE
+   La jointure ventes/ruptures se fait au niveau catégorie ATC1
+   (14 catégories) et non au niveau substance active (ATC5 — 1209 molécules).
+   Raison : les codes CIP13 d'Open Medic (format 3400xxxxxxxxx, 13 chiffres)
+   et d'ANSM (format court, 8 chiffres) utilisent des référentiels différents.
+   Impact : si une seule substance est en rupture dans une catégorie,
+   toutes les substances de la catégorie sont marquées.
+
+2. SOUS-DÉCLARATION
+   Les ruptures sont auto-déclarées par les industriels depuis mai 2021
+   seulement. Avant cette date, les données sont incomplètes.
+
+3. DÉSÉQUILIBRE DES CLASSES
+   9.8% de positifs seulement → nécessite traitement spécifique en ML.
+
+4. GRANULARITÉ TEMPORELLE
+   Données annuelles uniquement — pas de granularité mensuelle
+   pour les ventes (Open Medic ne fournit pas de données mensuelles).
+
+==========================================================================
+RÉFÉRENCES
+==========================================================================
+
+Assurance Maladie (2024). Open Medic : base complète 2021-2023.
+  https://assurance-maladie.ameli.fr/etudes-et-donnees/open-medic
+
+ANSM (2026). Fichier des ruptures de stocks + MITM + BDPM.
+  https://bdpmt.ansm.sante.fr/telechargement
+
+DREES (2025). Tensions et ruptures de stock de médicaments.
+  Études et Résultats n°1335.
+
+Benhabib et al. (2020). The French reporting system for drug shortages.
+  BMJ Open, 10(3).
+
+Cui et al. (2026). ShortageSim. AAAI 2026.
+
+Wang et al. (2025). Heterogeneous Multi-Agent Decision Making
+  in Symbiotic Supply Chain Environments. arXiv:2501.14111.
+
+==========================================================================
+
+==========================================================================
+ADDENDUM — CORRECTIONS APPLIQUÉES (16/06/2026)
+==========================================================================
+
+CORRECTION 1 — Normalisation des catégories ATC1
+--------------------------------------------------------------------------
+Problème détecté : Open Medic encode les libellés de catégories (l_ATC1,
+L_ATC5...) tantôt en MAJUSCULES, tantôt en minuscules avec accents, selon
+l'année du fichier source. Cela créait 25-28 catégories au lieu de 14,
+dupliquant artificiellement chaque substance active en 2 lignes distinctes
+pour la même année.
+
+Solution appliquée : normalisation systématique en majuscules SANS accents
+(suppression via unicodedata) sur toutes les colonnes catégorielles, puis
+reconstruction du libellé de catégorie ATC1 depuis un mapping fixe basé
+sur le code ATC1 (la lettre), qui lui est toujours fiable.
+
+Résultat : 14 catégories thérapeutiques exactes, 0 doublon sur la clé
+(code_substance_active + année), conforme à la classification ATC
+internationale officielle (OMS).
+
+CORRECTION 2 — Déséquilibre des classes (variable cible)
+--------------------------------------------------------------------------
+Constat : la variable cible categorie_en_rupture est fortement déséquilibrée
+  - Dataset annuel  : 9.76% positifs (336/3443) → scale_pos_weight ≈ 9.2
+  - Dataset mensuel : 1.53% positifs (663/43362) → scale_pos_weight ≈ 64.4
+
+Recommandations pour la modélisation ML (à appliquer aux jours 8-10) :
+
+  XGBoost :
+    - Paramètre scale_pos_weight = 9.2 (annuel) ou 64.4 (mensuel)
+    - Évaluer avec F1-score et recall sur la classe positive,
+      jamais avec l'accuracy seule (qui serait trompeusement élevée)
+
+  LSTM :
+    - Privilégier une approche de régression (prédire boites_vendues
+      à t+1) plutôt qu'une classification binaire directe
+    - Détecter la rupture comme anomalie : chute brutale de la valeur
+      prédite par rapport à la tendance historique
+    - Alternative : class_weight dans la couche de sortie si classification
+      binaire conservée
+
+  Alternative complémentaire :
+    - SMOTE (Synthetic Minority Oversampling) sur le jeu d'entraînement
+      uniquement (jamais sur le jeu de test, pour éviter la fuite de
+      données)
+
+==========================================================================
+
+==========================================================================
+ADDENDUM 2 — AMÉLIORATION DE LA JOINTURE PAR FUZZY MATCHING (16/06/2026)
+==========================================================================
+
+PROBLÈME INITIAL
+--------------------------------------------------------------------------
+La jointure directe par code (CIP13) entre les ruptures ANSM et les
+référentiels de médicaments (BDPM/MITM) ne fonctionnait que pour 36 cas
+sur 767 (4.7%), car les deux sources utilisent des formats de codes
+incompatibles entre eux.
+
+SOLUTION APPLIQUÉE — Fuzzy matching textuel (indice de Jaccard)
+--------------------------------------------------------------------------
+Méthode : pour chaque rupture, le nom du médicament est extrait depuis
+l'URL ANSM puis comparé à l'ensemble des 15 848 noms de spécialités du
+référentiel BDPM. La similarité est mesurée par l'indice de Jaccard
+(rapport entre mots en commun et mots totaux des deux noms). Le candidat
+avec le score le plus élevé est retenu si score ≥ 0.5 (au moins 50% de
+mots partagés).
+
+Indexation par mots-clés (longueur > 3 caractères) pour limiter le nombre
+de comparaisons et rendre le traitement réalisable en temps raisonnable
+sur 767 × 15 848 paires potentielles.
+
+RÉSULTAT
+--------------------------------------------------------------------------
+  Avant (jointure directe par code)  : 36/767 ruptures identifiées (4.7%)
+  Après (fuzzy matching textuel)     : 154/767 ruptures identifiées (20.1%)
+
+Fichier produit : ruptures_enrichies_fuzzy_matching.csv
+  Contient pour chaque rupture identifiée : nom original ANSM, nom
+  officiel BDPM correspondant, code CIS, code ATC5 précis, score de
+  similarité, type et dates de l'événement.
+
+EXEMPLES DE CORRESPONDANCES VALIDÉES
+  - "tenormine...atenolol" → TENORMINE 5mg/10ml (ATC: C07AB03) score=0.91
+  - "synacthene...tetracosactide" → SYNACTHENE 0,25mg/1ml (ATC: H01AA02) score=0.89
+  - "extencilline..." → EXTENCILLINE 1,2 MUI (ATC: J01CE08) score=0.85
+
+LIMITE RÉSIDUELLE ASSUMÉE
+--------------------------------------------------------------------------
+79.9% des ruptures (613/767) restent non identifiées au niveau molécule
+précise, principalement car :
+  - Noms de médicaments très différents entre formulations (génériques
+    vs princeps, abréviations)
+  - Certains médicaments en rupture ne figurent pas dans le référentiel
+    BDPM consulté (produits hors AMM française, dispositifs médicaux)
+
+Le dataset master continue donc d'utiliser l'agrégation par catégorie
+ATC1 comme niveau principal d'analyse, mais la table d'enrichissement
+fuzzy matching peut être utilisée en complément pour des études de cas
+qualitatives sur les 154 médicaments précisément identifiés.
+
+==========================================================================
+
+==========================================================================
+ADDENDUM 3 — DÉCISION FINALE SUR LA GRANULARITÉ DE LA VARIABLE CIBLE
+(16/06/2026)
+==========================================================================
+
+INVESTIGATION COMPLÉMENTAIRE
+--------------------------------------------------------------------------
+Suite à l'amélioration du fuzzy matching (69.4% de ruptures identifiées
+au niveau molécule précise, cf. Addendum 2), une tentative a été menée
+pour reconstruire le dataset master directement au niveau molécule
+(ATC5) plutôt qu'au niveau catégorie (ATC1).
+
+DÉCOUVERTE IMPORTANTE — Désalignement temporel des sources
+--------------------------------------------------------------------------
+L'analyse a révélé que sur les 767 événements du fichier ANSM (export du
+10/06/2026), seulement 125 concernent la période 2021-2023 couverte par
+nos données de ventes (Open Medic / Medic'AM). La majorité des événements
+(609, soit 83%) concernent 2024-2026 — le fichier ANSM étant un export
+instantané reflétant majoritairement les déclarations récentes encore
+actives dans leur système.
+
+Extension testée à 2021-2025 (ajout de Medic'AM 2024 et 2025) :
+417 ruptures précises tombent alors dans la période couverte, mais une
+fois agrégées par substance précise et mois, seulement 16 substances
+distinctes présentent une rupture confirmée sur 72 654 lignes (0.02%) —
+un déséquilibre trop extrême pour permettre un apprentissage ML fiable,
+même avec class_weight ou SMOTE.
+
+DÉCISION FINALE
+--------------------------------------------------------------------------
+La variable cible pour la modélisation ML reste construite au niveau
+CATÉGORIE THÉRAPEUTIQUE (ATC1, 14 catégories), sur la période 2021-2023,
+telle que documentée dans le corps principal de ce document (9.8% de
+positifs — taux statistiquement exploitable).
+
+La table enrichie par fuzzy matching (ruptures_enrichies_fuzzy_matching.csv,
+532 médicaments identifiés précisément) est conservée et utilisée comme :
+  - Analyse qualitative complémentaire dans le rapport (exemples concrets
+    de médicaments touchés : Tenormine/Aténolol, Synacthène, etc.)
+  - Validation de la cohérence entre catégories ATC1 en rupture et
+    molécules réellement concernées
+  - Source pour calibrer qualitativement les paramètres de la simulation
+    multi-agent (durées de rupture réelles par exemple de médicament)
+
+Ce choix méthodologique est assumé : la précision moléculaire, bien
+qu'améliorée significativement (4.7% → 69.4% de couverture du fichier
+ANSM), ne peut pas servir de variable cible statistique principale en
+raison du volume insuffisant d'exemples positifs une fois recoupée avec
+la période disponible pour les données de ventes.
+
+==========================================================================

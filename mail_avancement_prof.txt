@@ -1,0 +1,26 @@
+Objet : Avancement projet de recherche - chaine pharmaceutique francaise - demande de rendez-vous jeudi
+
+Bonjour Professeur,
+
+Voici un point sur l'avancement de mon projet. Avant cela, seriez-vous disponible jeudi apres-midi a partir de 15h pour que nous en discutions de vive voix ?
+
+MODELISATION
+
+J'ai modelise la chaine pharmaceutique francaise comme un systeme multi-agent, en m'inspirant de ShortageSim (Cui et al., AAAI 2026) que j'ai etendu au contexte francais : ajout du grossiste repartiteur (intermediaire obligatoire par la loi, absent du modele original) et du circuit hospitalier en parallele du circuit de ville. Le systeme comporte cinq agents, avec pour chacun ses informations disponibles et ses regles de decision. Mon etude a permis d'identifier trois points de rupture possibles, le grossiste etant le plus critique.
+
+DONNEES
+
+Comme nous l'avions evoque, il n'existait pas de base complete couvrant production et consommation. J'ai construit mon propre jeu de donnees en fusionnant les ventes de medicaments (Open Medic, Assurance Maladie, 2021-2023) et les ruptures declarees a l'ANSM. La jointure reste imparfaite (codes incompatibles entre les deux sources), amelioree par un rapprochement textuel des noms (de moins de 5% a environ 70% de correspondance), mais le nombre d'exemples de rupture reste trop faible pour s'appuyer sur le medicament individuel. J'ai donc garde une granularite par categorie therapeutique.
+
+SIMULATION
+
+Comme vous me l'aviez recommande, j'ai choisi de bien traiter une partie de la chaine plutot que de toutes les aborder superficiellement en meme temps. A partir de mon etude theorique, j'ai identifie que le grossiste est le point de rupture principal : j'ai donc commence par coder une premiere simulation centree sur ce maillon Grossiste-Pharmacie, avec des parametres calibres sur les statistiques reelles de l'ANSM plutot que sur les valeurs americaines de l'article de reference. La demande du patient suit une loi stochastique simple autour d'une moyenne, et la survenue ainsi que la duree des pannes du fabricant sont egalement aleatoires. Si vous validez cette premiere partie, je passerai aux autres maillons de la chaine.
+
+MA QUESTION
+
+Le dataset reel contient peu d'exemples de rupture (moins de 10%), ce qui va limiter la robustesse d'un futur modele de machine learning. Dois-je continuer uniquement avec ces donnees reelles, ou serait-il preferable de generer en complement des donnees synthetiques via ma propre simulation, calibrees sur les statistiques reelles, en gardant l'evaluation finale sur les donnees reelles uniquement ?
+
+Vous trouverez en piece jointe la modelisation theorique et le code de simulation.
+
+Cordialement,
+Hiba
