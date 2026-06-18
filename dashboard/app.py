@@ -180,7 +180,21 @@ def main():
             c2.metric("Precision", f"{report['precision']:.3f}")
             c3.metric("Recall", f"{report['recall']:.3f}")
             c4.metric("F1", f"{report['f1']:.3f}")
-            st.caption(f"TP={report['tp']} | TN={report['tn']} | FP={report['fp']} | FN={report['fn']}")
+            confusion_df = pd.DataFrame(
+                {
+                    "Prédit négatif": [
+                        f"TN: {report.get('tn', report.get('TN'))}",
+                        f"FN: {report.get('fn', report.get('FN'))}",
+                    ],
+                    "Prédit positif": [
+                        f"FP: {report.get('fp', report.get('FP'))}",
+                        f"TP: {report.get('tp', report.get('TP'))}",
+                    ],
+                },
+                index=["Réel négatif", "Réel positif"],
+            )
+            st.subheader("Matrice de confusion")
+            st.table(confusion_df)
 
         tab_simulation, tab_manuelle = st.tabs(["Predictions sur simulation", "Prediction manuelle"])
 
