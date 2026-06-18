@@ -84,9 +84,9 @@ Le cadre conceptuel plus large du projet vise une chaîne pharmaceutique complè
 
 La demande hebdomadaire du patient est modélisée par une variable aléatoire tronquée à zéro :
 
-\[
+$$
 D_t = \max(0, \mathcal{N}(D_0, \sigma^2))
-\]
+$$
 
 où :
 
@@ -100,13 +100,13 @@ Cette formulation capture l’idée d’une consommation fluctuante, tout en év
 
 La simulation utilise une prévision simple à partir d’une fenêtre glissante :
 
-\[
+$$
 \hat{D}_t =
 \begin{cases}
 D_0 & \text{si aucun historique n’est disponible} \\
 \frac{1}{m}\sum_{i=1}^{m} D_{t-i} & \text{sinon}
 \end{cases}
-\]
+$$
 
 avec \(m\) la taille de l’historique utilisé.
 
@@ -119,21 +119,21 @@ Cette prévision joue un double rôle :
 
 Le fabricant dispose d’une capacité nominale \(C_{\text{nom}}\). Sa production théorique est ajustée à la demande observée :
 
-\[
+$$
 C_t^{\text{th}} = \min(1.1 \cdot \hat{D}_t,\; C_{\text{nom}})
-\]
+$$
 
 Le facteur \(1.1\) introduit une marge de sécurité modérée.
 
 En cas de disruption, la production effective est réduite :
 
-\[
+$$
 C_t =
 \begin{cases}
 C_t^{\text{th}} & \text{si aucune disruption n’est active} \\
 (1-\delta) \, C_t^{\text{th}} & \text{si une disruption est active}
 \end{cases}
-\]
+$$
 
 où \(\delta\) représente la perte de capacité liée à l’incident.
 
@@ -141,9 +141,9 @@ où \(\delta\) représente la perte de capacité liée à l’incident.
 
 La disruption du fabricant est modélisée comme un processus stochastique de type Bernoulli :
 
-\[
+$$
 Z_t \sim \mathcal{B}(\lambda)
-\]
+$$
 
 avec :
 
@@ -152,9 +152,9 @@ avec :
 
 Une fois activée, la disruption dure un nombre aléatoire de semaines \(L\) :
 
-\[
+$$
 L \sim \mathcal{U}\{L_{\min}, L_{\max}\}
-\]
+$$
 
 La variable d’état de la disruption évolue ensuite avec un compteur de durée restante.
 
@@ -167,13 +167,13 @@ Deux délais sont pris en compte :
 
 Les flux reçus à la semaine \(t\) correspondent donc à des envois antérieurs :
 
-\[
+$$
 A_t^{FG} = C_{t-d_{FG}}
-\]
+$$
 
-\[
+$$
 A_t^{GP} = Q_{t-d_{GP}}
-\]
+$$
 
 où \(Q_t\) est la quantité expédiée par le grossiste vers la pharmacie.
 
@@ -183,61 +183,61 @@ Cette représentation par files de retard permet de simuler les effets d’inert
 
 Le grossiste joue le rôle d’amortisseur entre la production et la demande de détail. Son stock évolue selon :
 
-\[
+$$
 S_t^{G} = S_{t-1}^{G} + A_t^{FG} - Q_t
-\]
+$$
 
 La quantité servie au système aval est limitée par le stock disponible :
 
-\[
+$$
 Q_t = \min(S_t^{G}, \; \text{demande reçue})
-\]
+$$
 
 Le grossiste est déclaré en rupture lorsque son stock passe sous un seuil critique :
 
-\[
+$$
 \mathbb{1}_{\text{rupture},t}^{G} =
 \begin{cases}
 1 & \text{si } S_t^{G} < s_G^{\text{crit}} \\
 0 & \text{sinon}
 \end{cases}
-\]
+$$
 
 ### 4.8. Pharmacie
 
 La pharmacie reçoit les livraisons du grossiste, puis sert la demande patient. Son stock suit :
 
-\[
+$$
 S_t^{P} = S_{t-1}^{P} + A_t^{GP} - V_t
-\]
+$$
 
 avec :
 
-\[
+$$
 V_t = \min(S_t^{P}, D_t)
-\]
+$$
 
 La demande non servie vaut :
 
-\[
+$$
 M_t = D_t - V_t
-\]
+$$
 
 et le taux de service est donné par :
 
-\[
+$$
 \tau_t =
 \begin{cases}
 1 & \text{si } D_t \le 0 \\
 \frac{V_t}{D_t} & \text{sinon}
 \end{cases}
-\]
+$$
 
 La pharmacie est en rupture si son stock devient nul ou négatif :
 
-\[
+$$
 \mathbb{1}_{\text{rupture},t}^{P} = \mathbb{1}(S_t^{P} \le 0)
-\]
+$$
 
 ---
 
@@ -273,9 +273,9 @@ Ces variables reflètent à la fois :
 
 La variable cible du modèle ML est définie comme une rupture future à 4 semaines. Formellement :
 
-\[
+$$
 y_t = \mathbb{1}\left(\exists k \in \{1,\dots,4\},\; \mathbb{1}_{\text{rupture},t+k}^{G}=1\right)
-\]
+$$
 
 Cette formulation transforme le problème en classification binaire :
 
@@ -286,9 +286,9 @@ Cette formulation transforme le problème en classification binaire :
 
 Pour diversifier les scénarios, la simulation est répétée plusieurs fois avec des graines différentes. Le dataset final est obtenu par concaténation :
 
-\[
+$$
 \mathcal{D} = \bigcup_{i=1}^{N} \mathcal{D}_i
-\]
+$$
 
 où \(N\) est le nombre de simulations Monte Carlo.
 
@@ -331,15 +331,15 @@ En solution de secours, un modèle logistique simple est prévu afin de conserve
 
 Le classifieur renvoie une probabilité de rupture :
 
-\[
+$$
 p_t = \mathbb{P}(y_t=1 \mid x_t)
-\]
+$$
 
 et une décision binaire :
 
-\[
+$$
 \hat{y}_t = \mathbb{1}(p_t \geq 0.5)
-\]
+$$
 
 où \(x_t\) désigne le vecteur de variables explicatives à la semaine \(t\).
 
@@ -347,21 +347,21 @@ où \(x_t\) désigne le vecteur de variables explicatives à la semaine \(t\).
 
 Le rapport du modèle est évalué par :
 
-\[
+$$
 \text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}
-\]
+$$
 
-\[
+$$
 \text{Precision} = \frac{TP}{TP + FP}
-\]
+$$
 
-\[
+$$
 \text{Recall} = \frac{TP}{TP + FN}
-\]
+$$
 
-\[
+$$
 F1 = \frac{2 \cdot \text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}
-\]
+$$
 
 avec :
 
@@ -396,9 +396,9 @@ Cette séparation des responsabilités améliore :
 
 La simulation utilise une graine aléatoire contrôlée :
 
-\[
+$$
 \text{seed} = s
-\]
+$$
 
 Ce mécanisme permet de reproduire les trajectoires de simulation et les résultats associés, ce qui est essentiel dans un cadre scientifique.
 
@@ -605,4 +605,3 @@ Les figures ci-dessous sont prévues pour l’intégration finale dans le rappor
 - `images/placeholder_dashboard_stocks.png`
 - `images/placeholder_dashboard_demandes.png`
 - `images/placeholder_dashboard_manual.png`
-
