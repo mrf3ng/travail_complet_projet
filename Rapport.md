@@ -90,9 +90,9 @@ $$
 
 où :
 
-- \(D_t\) est la demande observée à la semaine \(t\) ;
-- \(D_0\) est la demande moyenne ;
-- \(\sigma\) est l’écart-type de la demande.
+- $D_t$ est la demande observée à la semaine $t$ ;
+- $D_0$ est la demande moyenne ;
+- $\sigma$ est l’écart-type de la demande.
 
 Cette formulation capture l’idée d’une consommation fluctuante, tout en évitant les valeurs négatives non physiques.
 
@@ -108,7 +108,7 @@ D_0 & \text{si aucun historique n’est disponible} \\
 \end{cases}
 $$
 
-avec \(m\) la taille de l’historique utilisé.
+avec $m$ la taille de l’historique utilisé.
 
 Cette prévision joue un double rôle :
 
@@ -117,13 +117,13 @@ Cette prévision joue un double rôle :
 
 ### 4.4. Production du fabricant
 
-Le fabricant dispose d’une capacité nominale \(C_{\text{nom}}\). Sa production théorique est ajustée à la demande observée :
+Le fabricant dispose d’une capacité nominale $C_{\text{nom}}$. Sa production théorique est ajustée à la demande observée :
 
 $$
 C_t^{\text{th}} = \min(1.1 \cdot \hat{D}_t,\; C_{\text{nom}})
 $$
 
-Le facteur \(1.1\) introduit une marge de sécurité modérée.
+Le facteur $1.1$ introduit une marge de sécurité modérée.
 
 En cas de disruption, la production effective est réduite :
 
@@ -135,7 +135,7 @@ C_t^{\text{th}} & \text{si aucune disruption n’est active} \\
 \end{cases}
 $$
 
-où \(\delta\) représente la perte de capacité liée à l’incident.
+où $\delta$ représente la perte de capacité liée à l’incident.
 
 ### 4.5. Modélisation de la disruption
 
@@ -147,10 +147,10 @@ $$
 
 avec :
 
-- \(Z_t = 1\) si une disruption débute à la semaine \(t\) ;
-- \(\lambda\) la probabilité hebdomadaire de disruption.
+- $Z_t = 1$ si une disruption débute à la semaine $t$ ;
+- $\lambda$ la probabilité hebdomadaire de disruption.
 
-Une fois activée, la disruption dure un nombre aléatoire de semaines \(L\) :
+Une fois activée, la disruption dure un nombre aléatoire de semaines $L$ :
 
 $$
 L \sim \mathcal{U}\{L_{\min}, L_{\max}\}
@@ -162,10 +162,10 @@ La variable d’état de la disruption évolue ensuite avec un compteur de duré
 
 Deux délais sont pris en compte :
 
-- \(d_{FG}\) : délai fabricant -> grossiste ;
-- \(d_{GP}\) : délai grossiste -> pharmacie.
+- $d_{FG}$ : délai fabricant -> grossiste ;
+- $d_{GP}$ : délai grossiste -> pharmacie.
 
-Les flux reçus à la semaine \(t\) correspondent donc à des envois antérieurs :
+Les flux reçus à la semaine $t$ correspondent donc à des envois antérieurs :
 
 $$
 A_t^{FG} = C_{t-d_{FG}}
@@ -175,7 +175,7 @@ $$
 A_t^{GP} = Q_{t-d_{GP}}
 $$
 
-où \(Q_t\) est la quantité expédiée par le grossiste vers la pharmacie.
+où $Q_t$ est la quantité expédiée par le grossiste vers la pharmacie.
 
 Cette représentation par files de retard permet de simuler les effets d’inertie propres à une chaîne d’approvisionnement.
 
@@ -279,8 +279,8 @@ $$
 
 Cette formulation transforme le problème en classification binaire :
 
-- \(y_t = 1\) : une rupture du grossiste est attendue dans les 4 semaines ;
-- \(y_t = 0\) : aucune rupture n’est détectée à cet horizon.
+- $y_t = 1$ : une rupture du grossiste est attendue dans les 4 semaines ;
+- $y_t = 0$ : aucune rupture n’est détectée à cet horizon.
 
 ### 5.3. Génération Monte Carlo
 
@@ -290,7 +290,7 @@ $$
 \mathcal{D} = \bigcup_{i=1}^{N} \mathcal{D}_i
 $$
 
-où \(N\) est le nombre de simulations Monte Carlo.
+où $N$ est le nombre de simulations Monte Carlo.
 
 Cette approche augmente la variété des trajectoires observées et améliore la robustesse de l’entraînement.
 
@@ -341,7 +341,7 @@ $$
 \hat{y}_t = \mathbb{1}(p_t \geq 0.5)
 $$
 
-où \(x_t\) désigne le vecteur de variables explicatives à la semaine \(t\).
+où $x_t$ désigne le vecteur de variables explicatives à la semaine $t$.
 
 ### 6.4. Mesures d’évaluation
 
@@ -365,10 +365,10 @@ $$
 
 avec :
 
-- \(TP\) : vrais positifs ;
-- \(TN\) : vrais négatifs ;
-- \(FP\) : faux positifs ;
-- \(FN\) : faux négatifs.
+- $TP$ : vrais positifs ;
+- $TN$ : vrais négatifs ;
+- $FP$ : faux positifs ;
+- $FN$ : faux négatifs.
 
 Dans le contexte de la rupture de stock, le **recall** est particulièrement important : manquer une rupture réelle est souvent plus pénalisant qu’annoncer une alerte un peu trop tôt.
 
@@ -434,7 +434,7 @@ Le bouton **Entraîner le modèle** lance l’apprentissage sur le dataset dispo
 - `Precision`
 - `Recall`
 - `F1`
-- ainsi que les comptes \(TP, TN, FP, FN\).
+- ainsi que les comptes $TP, TN, FP, FN$.
 
 **Interprétation** :
 - une `Accuracy` élevée indique une bonne performance globale ;
@@ -456,7 +456,7 @@ Les courbes présentées sont essentielles pour interpréter la dynamique du sys
 
 #### Courbe de probabilité de rupture
 
-Cette courbe montre \(p_t\), la probabilité préditе de rupture à 4 semaines.
+Cette courbe montre $p_t$, la probabilité prédite de rupture à 4 semaines.
 
 **Lecture** :
 - une montée progressive de la probabilité signale une fragilisation du système ;
