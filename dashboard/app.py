@@ -36,6 +36,28 @@ def load_dataset(path: str):
     return pd.read_csv(path)
 
 
+def _line_figure(df, x_col, y_cols, title, labels=None):
+    available_cols = [col for col in y_cols if col in df.columns]
+    if not available_cols:
+        return px.line(title=title)
+
+    plot_df = df[[x_col] + available_cols].melt(
+        id_vars=x_col,
+        value_vars=available_cols,
+        var_name="serie",
+        value_name="valeur",
+    )
+    fig = px.line(
+        plot_df,
+        x=x_col,
+        y="valeur",
+        color="serie",
+        title=title,
+        labels=labels,
+    )
+    return fig
+
+
 def main():
     _setup_logging()
 
@@ -182,11 +204,16 @@ def main():
                     width="stretch",
                 )
                 st.plotly_chart(
-                    px.line(pred_data, x="periode", y=["stock_grossiste", "stock_pharmacie"], title="Stocks principaux"),
+                    _line_figure(pred_data, "periode", ["stock_grossiste", "stock_pharmacie"], "Stocks principaux"),
                     width="stretch",
                 )
                 st.plotly_chart(
-                    px.line(pred_data, x="periode", y=["demande_patient", "demande_prevue"], title="Demande observee vs demande prevue"),
+                    _line_figure(
+                        pred_data,
+                        "periode",
+                        ["demande_patient", "demande_prevue", "demande_lissee_fabricant"],
+                        "Demande et signal de production",
+                    ),
                     width="stretch",
                 )
                 st.dataframe(

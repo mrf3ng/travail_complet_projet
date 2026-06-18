@@ -1,0 +1,24 @@
+2026-06-18 05:04:05,400 ERROR dashboard failed: All arguments should have the same length. The length of argument `y` is 2, whereas the length of previously-processed arguments ['periode'] is 104
+Traceback (most recent call last):
+  File "C:\Users\DELL\Documents\Hiba AIMAD\Projet Rechercher S8\travail_complet_projet\dashboard\app.py", line 189, in main
+    px.line(pred_data, x="periode", y=["demande_patient", "demande_prevue"], title="Demande observee vs demande prevue"),
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\DELL\Documents\Hiba AIMAD\Projet Rechercher S8\travail_complet_projet\.venv\Lib\site-packages\plotly\express\_chart_types.py", line 270, in line
+    return make_figure(args=locals(), constructor=go.Scatter)
+  File "c:\Users\DELL\Documents\Hiba AIMAD\Projet Rechercher S8\travail_complet_projet\.venv\Lib\site-packages\plotly\express\_core.py", line 2515, in make_figure
+    args = build_dataframe(args, constructor)
+  File "c:\Users\DELL\Documents\Hiba AIMAD\Projet Rechercher S8\travail_complet_projet\.venv\Lib\site-packages\plotly\express\_core.py", line 1758, in build_dataframe
+    df_output, wide_id_vars = process_args_into_dataframe(
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        args,
+        ^^^^^
+    ...<4 lines>...
+        native_namespace,
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "c:\Users\DELL\Documents\Hiba AIMAD\Projet Rechercher S8\travail_complet_projet\.venv\Lib\site-packages\plotly\express\_core.py", line 1404, in process_args_into_dataframe
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: All arguments should have the same length. The length of argument `y` is 2, whereas the length of previously-processed arguments ['periode'] is 104

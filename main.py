@@ -41,19 +41,34 @@ DELAI_GROSSISTE_PHARMACIE = 1
 
 FUTURE_HORIZON_WEEKS = 4
 HISTORIQUE_PREVISION = 8
+ALPHA_LISSAGE_DEMANDE = 0.3
 
 
 class Fabricant:
     """Produit selon une capacite adaptee a la demande observee."""
 
-    def __init__(self, capacite_nominale, lam=LAMBDA_HEBDO_FR, delta=DELTA_FR):
+    def __init__(
+        self,
+        capacite_nominale,
+        demande_initiale,
+        lam=LAMBDA_HEBDO_FR,
+        delta=DELTA_FR,
+        alpha=ALPHA_LISSAGE_DEMANDE,
+    ):
         self.capacite_nominale = capacite_nominale
         self.lam = lam
         self.delta = delta
+        self.alpha = alpha
         self.en_disruption = False
         self.duree_restante = 0
+        self.demande_lissee = float(demande_initiale)
 
     def produire(self, demande_observee):
+        self.demande_lissee = (
+            self.alpha * float(demande_observee)
+            + (1 - self.alpha) * self.demande_lissee
+        )
+
         if not self.en_disruption and random.random() < self.lam:
             self.en_disruption = True
             self.duree_restante = random.randint(
@@ -61,18 +76,13 @@ class Fabricant:
                 DUREE_DISRUPTION_MAX_FR,
             )
 
-        capacite_theorique = min(demande_observee * 1.10, self.capacite_nominale)
-
         if self.en_disruption:
-            production = capacite_theorique * (1 - self.delta)
             self.duree_restante -= 1
             if self.duree_restante <= 0:
                 self.en_disruption = False
                 self.duree_restante = 0
-        else:
-            production = capacite_theorique
 
-        return production
+        return min(self.demande_lissee, self.capacite_nominale * (1 - self.delta) if self.en_disruption else self.capacite_nominale)
 
 
 class FileDelai:
@@ -93,16 +103,12 @@ class FileDelai:
 
 
 class Grossiste:
-    """Agent intermediaire avec regle de commande simple."""
+    """Recoit le flux du fabricant (apres delai), sert la pharmacie selon sa demande."""
 
     def __init__(self, stock_initial, seuil_critique):
         self.stock = float(stock_initial)
         self.seuil_critique = float(seuil_critique)
         self.en_rupture = False
-
-    def calcul_commande(self, demande_prevue):
-        stock_cible = self.seuil_critique * 8
-        return max(0.0, stock_cible - self.stock + demande_prevue)
 
     def recevoir(self, quantite):
         self.stock += float(quantite)
@@ -115,17 +121,13 @@ class Grossiste:
 
 
 class Pharmacie:
-    """Dernier maillon avant le patient, avec politique de commande cible."""
+    """Recoit le flux du grossiste (apres delai), vend au patient."""
 
     def __init__(self, stock_initial, seuil_critique):
         self.stock = float(stock_initial)
         self.seuil_critique = float(seuil_critique)
         self.en_rupture = False
         self.demande_non_servie_cumulee = 0.0
-
-    def calcul_commande(self, demande_prevue):
-        stock_cible = self.seuil_critique * 4
-        return max(0.0, stock_cible - self.stock + demande_prevue)
 
     def recevoir(self, quantite):
         self.stock += float(quantite)
@@ -136,8 +138,7 @@ class Pharmacie:
         self.stock -= vendu
         self.en_rupture = self.stock <= 0
         self.demande_non_servie_cumulee += manque
-        taux_service = 1.0 if demande <= 0 else vendu / demande
-        return vendu, manque, taux_service
+        return vendu
 
 
 def demande_patient(d0, sigma):
@@ -154,20 +155,14 @@ def _initialiser_historiques():
     return {
         "periode": [],
         "capacite_fabricant": [],
+        "demande_lissee_fabricant": [],
         "disruption_fabricant": [],
         "duree_disruption_restante": [],
         "demande_patient": [],
-        "demande_prevue": [],
-        "commande_pharmacie": [],
-        "commande_grossiste": [],
-        "livraison_grossiste": [],
-        "livraison_pharmacie": [],
         "demande_non_servie": [],
         "taux_service": [],
         "stock_grossiste": [],
         "stock_pharmacie": [],
-        "stock_transit_fg": [],
-        "stock_transit_gp": [],
         "rupture_grossiste": [],
         "rupture_pharmacie": [],
     }
@@ -176,10 +171,10 @@ def _initialiser_historiques():
 def lancer_simulation(n_periodes=104, d0=100, sigma=15, graine=42):
     random.seed(graine)
 
-    fabricant = Fabricant(capacite_nominale=130)
+    fabricant = Fabricant(capacite_nominale=130, demande_initiale=d0)
     grossiste = Grossiste(
         stock_initial=d0 * DELAI_FABRICANT_GROSSISTE * 1.5,
-        seuil_critique=d0 * 2,
+        seuil_critique=d0 * 0.8,
     )
     pharmacie = Pharmacie(
         stock_initial=d0 * DELAI_GROSSISTE_PHARMACIE * 1.5,
@@ -188,51 +183,34 @@ def lancer_simulation(n_periodes=104, d0=100, sigma=15, graine=42):
 
     file_fab_gros = FileDelai(DELAI_FABRICANT_GROSSISTE)
     file_gros_pharma = FileDelai(DELAI_GROSSISTE_PHARMACIE)
-    file_commande_gros_fab = FileDelai(DELAI_FABRICANT_GROSSISTE)
-
-    historique_demandes = deque(maxlen=HISTORIQUE_PREVISION)
     hist = _initialiser_historiques()
+    demande_recue_grossiste_precedente = d0
 
     for t in range(n_periodes):
-        demande_prevue = prevision_naive(historique_demandes, d0)
-        commande_pharmacie = pharmacie.calcul_commande(demande_prevue)
-        commande_grossiste = grossiste.calcul_commande(demande_prevue)
-
-        file_gros_pharma.envoyer(commande_pharmacie)
-        file_commande_gros_fab.envoyer(commande_grossiste)
-
+        capacite = fabricant.produire(demande_recue_grossiste_precedente)
+        file_fab_gros.envoyer(capacite)
         livraison_grossiste = file_fab_gros.recevoir()
         grossiste.recevoir(livraison_grossiste)
 
-        commande_arrivee = file_gros_pharma.recevoir()
-        livraison_pharmacie = grossiste.servir(commande_arrivee)
+        D = demande_patient(d0, sigma)
+        file_gros_pharma.envoyer(D)
+        demande_arrivee_au_grossiste = file_gros_pharma.recevoir()
+        livraison_pharmacie = grossiste.servir(demande_arrivee_au_grossiste)
         pharmacie.recevoir(livraison_pharmacie)
 
-        demande_observee_fab = file_commande_gros_fab.recevoir()
-        demande_pour_production = max(demande_prevue, demande_observee_fab)
-        capacite = fabricant.produire(demande_pour_production)
-        file_fab_gros.envoyer(capacite)
-
-        D = demande_patient(d0, sigma)
-        vendu, manque, taux_service = pharmacie.vendre(D)
-        historique_demandes.append(D)
+        vendu = pharmacie.vendre(D)
+        demande_recue_grossiste_precedente = demande_arrivee_au_grossiste
 
         hist["periode"].append(t)
         hist["capacite_fabricant"].append(capacite)
+        hist["demande_lissee_fabricant"].append(fabricant.demande_lissee)
         hist["disruption_fabricant"].append(fabricant.en_disruption)
         hist["duree_disruption_restante"].append(fabricant.duree_restante)
         hist["demande_patient"].append(D)
-        hist["demande_prevue"].append(demande_prevue)
-        hist["commande_pharmacie"].append(commande_pharmacie)
-        hist["commande_grossiste"].append(commande_grossiste)
-        hist["livraison_grossiste"].append(livraison_grossiste)
-        hist["livraison_pharmacie"].append(livraison_pharmacie)
-        hist["demande_non_servie"].append(manque)
-        hist["taux_service"].append(taux_service)
+        hist["demande_non_servie"].append(D - vendu)
+        hist["taux_service"].append(0.0 if D <= 0 else vendu / D)
         hist["stock_grossiste"].append(grossiste.stock)
         hist["stock_pharmacie"].append(pharmacie.stock)
-        hist["stock_transit_fg"].append(file_fab_gros.niveau())
-        hist["stock_transit_gp"].append(file_gros_pharma.niveau())
         hist["rupture_grossiste"].append(grossiste.en_rupture)
         hist["rupture_pharmacie"].append(pharmacie.en_rupture)
 
@@ -299,31 +277,22 @@ def afficher(hist, output_path=None):
 
     fig, axes = plt.subplots(4, 1, figsize=(12, 11), sharex=True)
 
-    axes[0].plot(hist["periode"], hist["demande_patient"], color="#7A3E9D", linewidth=1.3)
-    axes[0].plot(hist["periode"], hist["demande_prevue"], color="#2B7A78", linewidth=1.1)
-    axes[0].set_ylabel("Demande")
-    axes[0].set_title("Simulation pharmaceutique multi-agent")
-    axes[0].legend(["Demande observee", "Demande prevue"], fontsize=8)
+    axes[0].plot(hist["periode"], hist["capacite_fabricant"], color="#1A6B3C", linewidth=1.3)
+    axes[0].set_ylabel("Production\nfabricant")
+    axes[0].set_title("Simulation Grossiste-Pharmacie (v4) - production adaptative, parametres calibres France")
     axes[0].grid(alpha=0.3)
 
-    axes[1].plot(hist["periode"], hist["stock_grossiste"], color="#1D5FA6", linewidth=1.3)
-    axes[1].plot(hist["periode"], hist["stock_transit_fg"], color="#4C9F70", linewidth=1.0)
-    axes[1].set_ylabel("Grossiste")
-    axes[1].legend(["Stock grossiste", "Transit FG"], fontsize=8)
+    axes[1].plot(hist["periode"], hist["stock_grossiste"], color="#1D5FA6", linewidth=1.3, label="Stock grossiste")
+    axes[1].set_ylabel("Stock\ngrossiste")
+    axes[1].legend(fontsize=8)
     axes[1].grid(alpha=0.3)
 
-    axes[2].plot(hist["periode"], hist["stock_pharmacie"], color="#6D28D9", linewidth=1.3)
-    axes[2].plot(hist["periode"], hist["stock_transit_gp"], color="#F59E0B", linewidth=1.0)
-    axes[2].axhline(y=0, color="red", linestyle="--", linewidth=1)
-    axes[2].set_ylabel("Pharmacie")
-    axes[2].legend(["Stock pharmacie", "Transit GP"], fontsize=8)
+    axes[2].plot(hist["periode"], hist["stock_pharmacie"], color="#6D28D9", linewidth=1.3, label="Stock pharmacie")
+    axes[2].axhline(y=0, color="red", linestyle="--", linewidth=1, label="Rupture (stock=0)")
+    axes[2].set_ylabel("Stock\npharmacie")
+    axes[2].set_xlabel("Periode (semaine)")
+    axes[2].legend(fontsize=8)
     axes[2].grid(alpha=0.3)
-
-    axes[3].plot(hist["periode"], hist["taux_service"], color="#1A6B3C", linewidth=1.3)
-    axes[3].set_ylabel("Taux service")
-    axes[3].set_xlabel("Periode (semaine)")
-    axes[3].set_ylim(0, 1.05)
-    axes[3].grid(alpha=0.3)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)

@@ -26,20 +26,14 @@ DEFAULT_MODEL_NAME = "rupture_model.pkl"
 
 FEATURE_COLUMNS = [
     "capacite_fabricant",
+    "demande_lissee_fabricant",
     "disruption_fabricant",
     "duree_disruption_restante",
     "demande_patient",
-    "demande_prevue",
-    "commande_pharmacie",
-    "commande_grossiste",
-    "livraison_grossiste",
-    "livraison_pharmacie",
     "demande_non_servie",
     "taux_service",
     "stock_grossiste",
     "stock_pharmacie",
-    "stock_transit_fg",
-    "stock_transit_gp",
     "rupture_grossiste",
     "rupture_pharmacie",
 ]
@@ -101,13 +95,16 @@ def _ensure_columns(df, required):
 
 def load_dataset(dataset_path):
     df = pd.read_csv(dataset_path)
-    _ensure_columns(df, FEATURE_COLUMNS + [TARGET_COLUMN])
+    _ensure_columns(df, [TARGET_COLUMN])
     return df
 
 
 def prepare_matrix(df, feature_columns=None):
     feature_columns = feature_columns or FEATURE_COLUMNS
-    _ensure_columns(df, feature_columns)
+    df = df.copy()
+    missing = [col for col in feature_columns if col not in df.columns]
+    for col in missing:
+        df[col] = 0
 
     X = df[feature_columns].copy()
     for col in X.columns:
