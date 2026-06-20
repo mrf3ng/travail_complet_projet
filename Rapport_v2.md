@@ -195,6 +195,78 @@ $$
 
 La pharmacie est en rupture si son stock devient nul ou negatif.
 
+### 4.9. Schema ASCII des agents et de leurs comportements
+
+La figure suivante resume, de facon operationnelle, les trois agents de la simulation actuelle et leurs regles de comportement.
+
+```text
++------------------------------+
+| Fabricant                    |
+|------------------------------|
+| Entree: demande observee     |
+|   d(t)                       |
+|                              |
+| Lissage de la demande:       |
+|   D_liss(t) =                |
+|     alpha * d(t) +           |
+|     (1 - alpha) * D_liss(t-1)|
+|                              |
+| Disruption:                  |
+|   si Bernoulli(lambda) = 1    |
+|   alors duree = U[6,52]      |
+|                              |
+| Capacite disponible:         |
+|   C_disp(t) = C_nom          |
+|   ou C_nom * (1 - delta)     |
+|   si disruption              |
+|                              |
+| Production:                  |
+|   P(t) = min(D_liss(t),      |
+|              C_disp(t))      |
++--------------+---------------+
+               |
+               | delai 4 semaines
+               v
++------------------------------+
+| Grossiste                    |
+|------------------------------|
+| Stock initial:               |
+|   S_g(0) = 1.5 * D0 * 4      |
+|                              |
+| Reception:                   |
+|   S_g(t) <- S_g(t) + arrivee |
+|                              |
+| Service de la pharmacie:      |
+|   livre = min(S_g(t), demande)|
+|   S_g(t) <- S_g(t) - livre    |
+|                              |
+| Rupture grossiste:           |
+|   R2(t) = 1 si               |
+|   S_g(t) < seuil_critique    |
+|   seuil = 0.8 * D0           |
++--------------+---------------+
+               |
+               | delai 1 semaine
+               v
++------------------------------+
+| Pharmacie                    |
+|------------------------------|
+| Demande patient:             |
+|   D_p(t) ~ max(0, N(D0, sigma))|
+|                              |
+| Reception:                   |
+|   S_p(t) <- S_p(t) + arrivee |
+|                              |
+| Vente:                       |
+|   vendu = min(S_p(t), D_p(t))|
+|   manque = D_p(t) - vendu    |
+|   S_p(t) <- S_p(t) - vendu   |
+|                              |
+| Rupture pharmacie:           |
+|   R3(t) = 1 si S_p(t) <= 0   |
++------------------------------+
+```
+
 ---
 
 ## 5. Construction du jeu de donnees
@@ -245,6 +317,69 @@ $$
 $$
 
 Cette approche rend le jeu de donnees plus riche en configurations de demande, de disruptions et de transitions de rupture.
+
+### 5.4. Schema ASCII du processus complet
+
+Le schema ci-dessous relie la simulation, la generation du dataset, l'apprentissage supervise et le dashboard Streamlit.
+
+```text
+[Parametres utilisateur]
+   D0, sigma, nombre de periodes, nombre de simulations
+              |
+              v
+[Simulation multi-agent]
+   Fabricant -> Grossiste -> Pharmacie
+              |
+              v
+[Historique temporel]
+   periode
+   capacite_fabricant
+   demande_lissee_fabricant
+   disruption_fabricant
+   demande_patient
+   demande_non_servie
+   taux_service
+   stock_grossiste
+   stock_pharmacie
+   rupture_grossiste
+   rupture_pharmacie
+              |
+              v
+[Construction du label ML]
+   target_rupture_4_semaines =
+   1 si rupture_grossiste apparait
+   dans les 4 semaines suivantes
+              |
+              v
+[Dataset Monte Carlo]
+   dataset_xgboost.csv
+              |
+              v
+[Entrainement ML]
+   XGBoost si disponible
+   sinon regression logistique de secours
+              |
+              v
+[Artifact modele]
+   rupture_model.pkl
+              |
+              v
+[Streamlit / dashboard]
+   - generer le dataset
+   - entrainer / charger le modele
+   - afficher les metriques
+   - visualiser les ruptures du grossiste
+   - visualiser les stocks
+   - tester une prediction manuelle
+              |
+              v
+[Sorties visibles]
+   proba_rupture
+   prediction_rupture
+   courbes de stock
+   matrice de confusion
+   metriques Accuracy / Precision / Recall / F1
+```
 
 ---
 
@@ -382,6 +517,17 @@ L'onglet **Predictions sur simulation** permet de:
 
 Cette vue est importante pour comprendre visuellement la facon dont un incident amont se traduit dans l'etat du systeme.
 
+#### Correspondance avec le point R2
+
+Dans le briefing du projet, le point de rupture R2 correspond a la rupture chez le grossiste. Dans l'implementation actuelle:
+
+- `rupture_grossiste` represente directement l'etat R2;
+- `stock_grossiste` permet d'observer l'approche de la zone critique;
+- la cible `target_rupture_4_semaines` est construite a partir de `rupture_grossiste` sur l'horizon futur;
+- la probabilite `proba_rupture` affichee dans Streamlit est donc une estimation du risque futur de R2, et non seulement un constat a posteriori.
+
+Autrement dit, le dashboard ne se contente pas de montrer le stock du grossiste: il transforme ce stock et son etat de rupture en un indicateur de risque interpretable pour l'anticipation.
+
 #### Lecture du menu de simulation
 
 Le menu deroulant **Simulation** liste les identifiants des trajectoires Monte Carlo disponibles dans le dataset. Chaque valeur correspond a une simulation complete, generee avec une graine differente. Le choix d'une simulation permet donc d'explorer une trajectoire precise parmi l'ensemble des scenarii simules.
@@ -414,11 +560,12 @@ Interpretation:
 
 #### Lecture du graphe demande et signal de production
 
-Le graphe **Demande et signal de production** compare plusieurs courbes si elles sont disponibles dans le dataset:
+Le graphe **Demande et signal de production** compare les courbes disponibles dans le dataset. Dans l'implementation actuelle, les courbes attendues sont principalement:
 
 - `demande_patient`: la demande reelle observee;
-- `demande_prevue`: la prevision naive, si elle est enregistree;
 - `demande_lissee_fabricant`: le signal lisse utilise par le fabricant.
+
+Selon la version du dataset ou des enrichissements futurs, une colonne supplementaire de type `demande_prevue` peut aussi etre affichee si elle est presente.
 
 - Axe horizontal: la periode, en **semaines**;
 - Axe vertical: des **unites de demande ou de production**.
@@ -426,10 +573,10 @@ Le graphe **Demande et signal de production** compare plusieurs courbes si elles
 Interpretation:
 
 - `demande_patient` represente le comportement reel du marche;
-- `demande_prevue` donne une lecture lisse de la demande attendue;
 - `demande_lissee_fabricant` montre comment le fabricant repond au signal qu'il recoit;
 - si ce signal suit bien la demande reelle, la production s'ajuste mieux aux besoins;
-- si le signal reagi avec retard ou trop fortement, on peut observer des ecarts de stock.
+- si le signal reagit avec retard ou trop fortement, on peut observer des ecarts de stock;
+- la zone de tension du grossiste reste le point central a surveiller pour anticiper R2.
 
 #### Lecture du tableau final
 
