@@ -1,0 +1,32 @@
+# Environnements Python
+.venv/
+venv/
+env/
+ENV/
+
+# Bytecode et caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Variables d'environnement et secrets locaux
+.env
+.env.*
+
+# Logs et sorties temporaires
+logs/
+*.log
+
+# Artefacts generes par la simulation et le dashboard
+data/*.csv
+images/*.png
+models/*.pkl
+models/*.joblib
+
+# Streamlit
+.streamlit/
+
