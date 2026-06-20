@@ -382,6 +382,69 @@ L'onglet **Predictions sur simulation** permet de:
 
 Cette vue est importante pour comprendre visuellement la facon dont un incident amont se traduit dans l'etat du systeme.
 
+#### Lecture du menu de simulation
+
+Le menu deroulant **Simulation** liste les identifiants des trajectoires Monte Carlo disponibles dans le dataset. Chaque valeur correspond a une simulation complete, generee avec une graine differente. Le choix d'une simulation permet donc d'explorer une trajectoire precise parmi l'ensemble des scenarii simules.
+
+#### Lecture du graphe de probabilite de rupture
+
+Le graphe **Probabilite de rupture predite a 4 semaines** trace la variable `proba_rupture` produite par le modele.
+
+- Axe horizontal: la periode, exprimee en **semaines**;
+- Axe vertical: une **probabilite** comprise entre 0 et 1.
+
+Interpretation:
+
+- une valeur proche de 0 indique un risque faible de rupture a 4 semaines;
+- une valeur proche de 1 indique un risque eleve;
+- une hausse progressive de la courbe signale souvent une fragilisation de la chaine avant la rupture observable.
+
+#### Lecture du graphe des stocks principaux
+
+Le graphe **Stocks principaux** compare les stocks du grossiste et de la pharmacie.
+
+- Axe horizontal: la periode, en **semaines**;
+- Axe vertical: des **unites de stock**.
+
+Interpretation:
+
+- une baisse durable du stock du grossiste traduit une tension aval qui peut preceder une rupture;
+- un stock pharmacie proche de zero signifie que le patient risque de ne plus etre servi;
+- le stock grossiste est souvent l'indicateur le plus utile pour anticiper une rupture future.
+
+#### Lecture du graphe demande et signal de production
+
+Le graphe **Demande et signal de production** compare plusieurs courbes si elles sont disponibles dans le dataset:
+
+- `demande_patient`: la demande reelle observee;
+- `demande_prevue`: la prevision naive, si elle est enregistree;
+- `demande_lissee_fabricant`: le signal lisse utilise par le fabricant.
+
+- Axe horizontal: la periode, en **semaines**;
+- Axe vertical: des **unites de demande ou de production**.
+
+Interpretation:
+
+- `demande_patient` represente le comportement reel du marche;
+- `demande_prevue` donne une lecture lisse de la demande attendue;
+- `demande_lissee_fabricant` montre comment le fabricant repond au signal qu'il recoit;
+- si ce signal suit bien la demande reelle, la production s'ajuste mieux aux besoins;
+- si le signal reagi avec retard ou trop fortement, on peut observer des ecarts de stock.
+
+#### Lecture du tableau final
+
+Le tableau en fin de page permet de comparer la prediction du modele avec l'etat reel de la simulation.
+
+Les colonnes principales sont:
+
+- `periode`: la semaine consideree;
+- `proba_rupture`: la probabilite predite par le modele;
+- `prediction_rupture`: la classe binaire finale, avec seuil a 0.5;
+- `rupture_grossiste`: la rupture observee dans la simulation;
+- `stock_grossiste` et `stock_pharmacie`: les niveaux de stock reels.
+
+Ce tableau est utile pour verifier si le modele anticipe correctement les situations de tension et pour comprendre a quel moment la probabilite de rupture commence a augmenter.
+
 ### 8.4. Prediction manuelle
 
 L'onglet **Prediction manuelle** permet de saisir un scenario artificiel ou de reprendre une ligne de simulation comme base.
